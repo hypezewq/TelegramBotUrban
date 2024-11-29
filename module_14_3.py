@@ -64,8 +64,8 @@ async def get_formulas(call):
 
 @dp.callback_query_handler(text="calories")
 async def set_age(call):
-    await call.answer()
     await call.message.answer("Введите свой возраст:")
+    await call.answer()
     await UserState.age.set()
 
 
@@ -87,6 +87,7 @@ async def set_weight(message, state):
 async def send_calories(message, state):
     await state.update_data(weight=message.text)
     data = await state.get_data()
+    await state.finish()
     await message.answer(
         f"Ваша норма калорий: {10 * float(data['weight']) + 6.25 * float(data['growth']) - 5 * float(data['age']) + 5}")
 
