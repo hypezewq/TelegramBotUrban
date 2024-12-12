@@ -6,7 +6,7 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 import asyncio
 
-from crud_functions import get_all_products
+import crud_functions as crud
 
 with open("API", "r", encoding="utf-8") as f:
     api = f.read()
@@ -23,7 +23,9 @@ button_2 = KeyboardButton(text="Информация")
 button_3 = KeyboardButton(text="Купить")
 main_menu1.add(button_1, button_2)
 main_menu1.add(button_3)
-products = [InlineKeyboardButton(text=i[1], callback_data="product_buying") for i in get_all_products("not_telegram.db")]
+main_menu1.add(KeyboardButton(text="Регистрация"))
+products = [InlineKeyboardButton(text=i[1], callback_data="product_buying") for i in
+            crud.get_all_products("not_telegram.db")]
 products_menu = InlineKeyboardMarkup(inline_keyboard=[
     products,
 ],
@@ -36,9 +38,16 @@ class UserState(StatesGroup):
     weight = State()
 
 
+class RegistrationState(StatesGroup):
+    username = State()
+    email = State()
+    age = State()
+    balance = State()
+
+
 @dp.message_handler(text="Купить")
 async def get_buying_list(message):
-    for i in get_all_products("not_telegram.db"):
+    for i in crud.get_all_products("not_telegram.db"):
         await message.answer(f"Название: {i[1]} | Описание: {i[2]} | Цена: {i[3]}")
         with open("urban.jpg", "rb") as img:
             await message.answer_photo(img)
@@ -102,9 +111,54 @@ async def inform(message):
     await message.answer("Информация о боте")
 
 
+@dp.message_handler(text="Регистрация")
+async def sign_up(message):
+    await message.answer("Введите имя пользователя (Только латинский алфавит)")
+    await RegistrationState.username.set()
+
+
 @dp.message_handler()
 async def all_messages(message):
     await message.answer("Введите команду /start, чтобы начать общение")
+
+
+@dp.message_handler(state=RegistrationState.username)
+async def set_username(message, state):
+    async with state.proxy() as data:
+        username = message.text.strip()
+        if crud.is_included("not_telegram.db", username):
+            await message.answer("Пользователь с таким именем уже существует")
+            await RegistrationState.username.set()
+        else:
+            data["username"] = username
+            await message.answer("Введите свой email:")
+            await RegistrationState.email.set()
+
+
+@dp.message_handler(state=RegistrationState.email)
+async def set_email(message, state):
+    async with state.proxy() as data:
+        email = message.text.strip()
+        data["email"] = email
+        await message.answer("Введите свой возраст:")
+        await RegistrationState.age.set()
+
+
+@dp.message_handler(state=RegistrationState.age)
+async def set_age(message: types.Message, state: FSMContext):
+    async with state.proxy() as data:
+        try:
+            age = int(message.text.strip())
+            data['age'] = age
+            data["balance"] = 1000
+
+            crud.add_user("not_telegram.db", data["username"], data["email"], data["age"], data["balance"])
+
+            await message.answer(f"Пользователь {data['username']} успешно зарегистрирован!")
+            await state.finish()
+        except ValueError:
+            await message.answer("Возраст должен быть числом. Попробуйте снова:")
+            await RegistrationState.age.set()
 
 
 if __name__ == '__main__':
